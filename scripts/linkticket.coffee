@@ -5,17 +5,19 @@ moment = require("moment")
 btoa = require("btoa")
 {TextMessage} = require("hubot/src/message")
 
+jira_server = process.env.HUBOT_JIRA_SERVER
 jira_user = process.env.HUBOT_JIRA_USER
 jira_password = process.env.HUBOT_JIRA_PASSWORD
+jira_ignore_users = process.env.HUBOT_JIRA_IGNORE_USERS
 
-BOT_NAMES = ["jirabot"]
-TICKET_PATTERN = /\b(LK)-\d+/gi
-BASE_URL = "https://jira.slac.stanford.edu/"
+jira_server = if jira_server.slice(-1) != "/" then jira_server + "/"
 
-BROWSE_URL = "#{BASE_URL}browse/"
-API_BASE_URL = "#{BASE_URL}rest/api/latest/"
-ISSUE_URL = "#{API_BASE_URL}issue/"
-PROJECT_URL = "#{API_BASE_URL}project/"
+IGNORE_USERS = if jira_ignore_users then jira_ignore_users.split(",") else []
+BROWSE_URL = "#{jira_server}browse/"
+
+API_URL = "#{jira_server}rest/api/latest/"
+ISSUE_URL = "#{API_URL}issue/"
+PROJECT_URL = "#{API_URL}project/"
 
 
 module.exports = (robot) ->
@@ -30,7 +32,7 @@ module.exports = (robot) ->
         projectsPattern = robot.brain.get(PROJECT_URL).projects.join "|"
         ticketPattern = ///\b(#{projectsPattern})-\d+///gi
         match = message.match(ticketPattern)
-        if match and message.user.name not in BOT_NAMES
+        if match and message.user.name not in IGNORE_USERS
           console.log match
           match
         else
