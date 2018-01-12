@@ -9,22 +9,29 @@ jira_user = process.env.HUBOT_JIRA_USER
 jira_password = process.env.HUBOT_JIRA_PASSWORD
 
 BOT_NAMES = ["jirabot"]
-ALLOWED_PROJECTS = /\b(LK)-\d+/gi
+TICKET_PATTERN = /\b(LK)-\d+/gi
 BASE_URL = "https://jira.slac.stanford.edu/"
 
 BROWSE_URL = "#{BASE_URL}browse/"
-API_BASE_URL = "#{BASE_URL}rest/api/latest/issue/"
+API_BASE_URL = "#{BASE_URL}rest/api/latest/"
+ISSUE_URL = "#{API_BASE_URL}issue/"
+PROJECT_URL = "#{API_BASE_URL}project/"
+
 
 module.exports = (robot) ->
   rootCas = require('ssl-root-cas/latest').create()
   require('https').globalAgent.options.ca = rootCas
   ticketId = null
+  maybeUpdateProjects(robot, null)
   robot.listen(
     # Matcher
     (message) ->
       if message instanceof TextMessage
-        match = message.match(ALLOWED_PROJECTS)
+        projectsPattern = robot.brain.get(PROJECT_URL).projects.join "|"
+        ticketPattern = ///\b(#{projectsPattern})-\d+///gi
+        match = message.match(ticketPattern)
         if match and message.user.name not in BOT_NAMES
+          console.log match
           match
         else
           false
@@ -34,6 +41,7 @@ module.exports = (robot) ->
     (response) ->
       # Link to the associated tickets
       issueResponses(robot, response)
+      maybeUpdateProjects(robot, response)
   )
 
 makeHeaders = ->
@@ -54,7 +62,7 @@ issueResponses = (robot, msg) ->
     robot.brain.set(ticketId, now)
     if last and now.isBefore last.add(1, 'minute')
       return
-    urlstr="#{API_BASE_URL}#{ticketId}"
+    urlstr="#{ISSUE_URL}#{ticketId}"
     headers = makeHeaders()
     robot.http(urlstr,{ecdhCurve: 'auto'}).headers(headers).get() (err, res, body) ->
       if (not res)
@@ -78,6 +86,7 @@ issueResponses = (robot, msg) ->
       catch error
         msg.send("Error parsing JSON for #{ticketId}: `#{error}`")
 
+
 getAttachment = (issue) ->
   response = fallback: ''
   response.fallback = issue.key + ": " + issue.fields.summary
@@ -95,3 +104,26 @@ getAttachment = (issue) ->
   response.ts = moment(issue.fields.created).format("X")
   return response
 
+
+maybeUpdateProjects = (robot, msg) -> 
+  timeAndProjects = robot.brain.get(PROJECT_URL)
+  now = moment()
+  if timeAndProjects and now.isBefore timeAndProjects.last.add(1, 'hour')
+    return
+  headers = makeHeaders()
+  robot.http(PROJECT_URL, {ecdhCurve: 'auto'}).headers(headers).get() (err, res, body) ->
+    if err
+      console.log err
+      if msg
+        msg.send("(Error Retrieving Projects: `#{err}`)")
+      return
+    try
+      projects = []
+      projectList = JSON.parse(body)
+      for project in projectList
+        projects.push project.key
+      robot.brain.set(PROJECT_URL, {last: now, projects: projects})
+    catch error
+      console.log error
+      if msg
+        msg.send("Error parsing JSON for Projects: `#{error}`")
