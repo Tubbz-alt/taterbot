@@ -52,8 +52,9 @@ module.exports = (robot) ->
   )
 
 makeHeaders = ->
-  if not gh_token
-    return {}
+  if gh_token
+    return {Authorization: "token #{gh_token}"}
+  return {}
 
 
 issueResponses = (robot, msg) ->
@@ -117,26 +118,46 @@ maybeUpdateRepos = (robot, msg) ->
     now = moment()
     if timeAndRepos and now.isBefore moment(timeAndRepos.last).add(1, 'hour')
       return
-    do ->
-      user_url = "#{USERS_URL}#{user}/repos"
-      headers = makeHeaders()
-      now = moment()
-      robot.http(user_url, {ecdhCurve: 'auto'}).headers(headers).get() (err, res, body) ->
-        if err
-          console.log err
-          if msg
-            msg.send("(Error Retrieving Projects: `#{err}`)")
-          return
-        try
-          repos = []
-          repoList = JSON.parse(body)
-          for repo in repoList
-            repos.push repo.full_name
-          robot.brain.set(user_url, {last: now, repos:repos})
-          console.log "updated: #{user_url}"
-          console.log repos
-          console.log robot.brain.get("https://api.github.com/users/fermi-lat/repos")
-        catch error
-          console.log error
-          if msg
-            msg.send("Error parsing JSON for Projects: `#{error}`")
+    do (now, user_url) ->
+      repos = []
+      finished = () ->
+        robot.brain.set(user_url, {last: now, repos:repos})
+        console.log "Updated: #{user_url}"
+        console.log repos
+      updateRepos(robot, msg, user_url, repos, finished)
+
+
+updateRepos = (robot, msg, next_url, repos, finished) ->
+  headers = makeHeaders()
+  robot.http(next_url, {ecdhCurve: 'auto'}).headers(headers).get() (err, res, body) ->
+    if res.statusCode != 200
+      console.log body
+    if err
+      console.log err
+    if msg
+      msg.send("(Error Retrieving Projects: `#{err}`)")
+      return
+    try
+      repoList = JSON.parse(body)
+      for repo in repoList
+        repos.push repo.full_name
+      links = parseLinkHeader res.headers.link if res.headers.link
+      if links and links.next
+        updateRepos(robot, msg, links.next, repos, finished)
+      else
+        finished()
+    catch error
+      console.log error
+      if msg
+        msg.send("Error parsing JSON for Projects: `#{error}`")
+
+
+parseLinkHeader = (header) ->
+  parts = header.split(',')
+  links = {}
+  for p in parts
+    section = p.split(';')
+    url = section[0].replace(/<(.*)>/, '$1').trim()
+    name = section[1].replace(/rel="(.*)"/, '$1').trim()
+    links[name] = url
+  return links
