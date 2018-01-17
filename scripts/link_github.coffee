@@ -32,8 +32,6 @@ module.exports = (robot) ->
         repos = []
         for user in TRACKED_USERS
           user_url = "#{USERS_URL}#{user}/repos"
-          console.log user_url
-          console.log robot.brain.get(user_url)
           repos = repos.concat(robot.brain.get(user_url).repos)
         repoPattern = repos.join "|"
         issuePattern = ///\b(#{repoPattern})#\d+///gi
@@ -122,8 +120,6 @@ maybeUpdateRepos = (robot, msg) ->
       repos = []
       finished = () ->
         robot.brain.set(user_url, {last: now, repos:repos})
-        console.log "Updated: #{user_url}"
-        console.log repos
       updateRepos(robot, msg, user_url, repos, finished)
 
 
