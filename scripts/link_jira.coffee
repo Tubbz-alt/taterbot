@@ -47,12 +47,13 @@ module.exports = (robot) ->
   )
 
 makeHeaders = ->
-  auth = btoa("#{jira_user}:#{jira_password}")
-
-  return {
+  headers = {
     Accept: "application/json"
-    Authorization: "Basic #{auth}"
   }
+  
+  if jira_user
+    headers['Authorization'] = "Basic " + btoa("#{jira_user}:#{jira_password}")
+  return headers
 
 
 issueResponses = (robot, msg) ->

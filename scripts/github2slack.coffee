@@ -5,10 +5,10 @@
 {WebClient} = require '@slack/client'
 
 slack_app_token = process.env.HUBOT_SLACK_APP_TOKEN
-gh2slack_profile_label  process.env.HUBOT_GH2SLACK_LABEL
+gh2slack_profile_label = process.env.HUBOT_GH2SLACK_LABEL
 #gh2slack_ignore_users = process.env.HUBOT_GH2SLACK_IGNORE_USERS
 
-web = new WebClient(gh2slack_app_token)
+web = new WebClient(slack_app_token)
 
 IGNORE_USERS = [] # if gh_ignore_users then gh_ignore_users.split(",") else []
 
